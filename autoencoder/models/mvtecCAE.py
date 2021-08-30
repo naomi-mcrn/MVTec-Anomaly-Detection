@@ -8,7 +8,10 @@ from tensorflow import keras
 
 # Preprocessing parameters
 RESCALE = 1.0 / 255
-SHAPE = (256, 256)
+# SHAPE = (256, 256)
+SHAPE = (320, 320)
+# SHAPE = (480, 480)
+# SHAPE = (640, 640)
 PREPROCESSING_FUNCTION = None
 PREPROCESSING = None
 VMIN = 0.0
@@ -22,6 +25,8 @@ def build_model(color_mode):
         channels = 1
     elif color_mode == "rgb":
         channels = 3
+
+    sz = SHAPE[0] // 32
 
     # define model
     input_img = keras.layers.Input(shape=(*SHAPE, channels))
@@ -39,7 +44,7 @@ def build_model(color_mode):
     )
     x = keras.layers.Conv2D(64, (3, 3), strides=1, activation="relu", padding="same")(x)
     x = keras.layers.Conv2D(32, (3, 3), strides=1, activation="relu", padding="same")(x)
-    encoded = keras.layers.Conv2D(1, (8, 8), strides=1, padding="same")(x)
+    encoded = keras.layers.Conv2D(1, (sz, sz), strides=1, padding="same")(x)
 
     # Decode---------------------------------------------------------------------
     x = keras.layers.Conv2D(32, (3, 3), strides=1, activation="relu", padding="same")(

@@ -19,6 +19,7 @@ import matplotlib.pyplot as plt
 
 from autoencoder.models import mvtecCAE
 from autoencoder.models import baselineCAE
+from autoencoder.models import baselineCAE2x
 from autoencoder.models import inceptionCAE
 from autoencoder.models import resnetCAE
 from autoencoder.models import skipCAE
@@ -28,9 +29,18 @@ from autoencoder import losses
 import config
 import logging
 
+from tensorflow.keras.optimizers import SGD
+
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# FIXED_LR = 0.01 / 16 # 3e-4 at adam.
+FIXED_LR = 0.0005141749861650169 # toothbrush
+# FIXED_LR = 0.03019951842725277 # s3
+
+# weights_dir = r"C:\Anaconda3\envs\pbook_appx\apps\MVTec-Anomaly-Detection\saved_models\data\s3\mvtecCAE\mssim\28-08-2021_16-43-35\ckpt"
+# weights_file = "weights-93-0.27338.hdf5"
+WEIGHTS_PATH =  "" # os.path.join(weights_dir,weights_file)
 
 class AutoEncoder:
     def __init__(
@@ -94,6 +104,17 @@ class AutoEncoder:
             self.vmin = baselineCAE.VMIN
             self.vmax = baselineCAE.VMAX
             self.dynamic_range = baselineCAE.DYNAMIC_RANGE
+
+        elif architecture == "baselineCAE2x":
+            # Preprocessing parameters
+            self.model = baselineCAE2x.build_model(color_mode)
+            self.rescale = baselineCAE2x.RESCALE
+            self.shape = baselineCAE2x.SHAPE
+            self.preprocessing_function = baselineCAE2x.PREPROCESSING_FUNCTION
+            self.preprocessing = baselineCAE2x.PREPROCESSING
+            self.vmin = baselineCAE2x.VMIN
+            self.vmax = baselineCAE2x.VMAX
+            self.dynamic_range = baselineCAE2x.DYNAMIC_RANGE
 
         elif architecture == "inceptionCAE":
             # Preprocessing parameters
@@ -162,8 +183,11 @@ class AutoEncoder:
         self.create_save_dir()
 
         # compile model
+        opt = "adam"
+        # opt = SGD(lr=FIXED_LR, decay=1e-6, momentum=0.9, nesterov=True)
+        # opt = SGD(lr=FIXED_LR, decay=0.0, momentum=0.0, nesterov=False)
         self.model.compile(
-            loss=self.loss_function, optimizer="adam", metrics=self.metrics
+            loss=self.loss_function, optimizer=opt, metrics=self.metrics
         )
         return
 
@@ -171,6 +195,7 @@ class AutoEncoder:
 
     def find_lr_opt(self, train_generator, validation_generator):
         # initialize learner object
+
         self.learner = ktrain.get_learner(
             model=self.model,
             train_data=train_generator,
@@ -181,18 +206,20 @@ class AutoEncoder:
         # simulate training while recording learning rate and loss
         logger.info("initiating learning rate finder to determine best learning rate.")
 
-        self.learner.lr_find(
-            start_lr=self.start_lr,
-            lr_mult=1.01,
-            max_epochs=self.lr_max_epochs,
-            stop_factor=6,
-            verbose=self.verbose,
-            show_plot=True,
-            restore_weights_only=True,
-        )
-        self.ktrain_lr_estimate()
-        self.custom_lr_estimate()
-        self.lr_find_plot(n_skip_beginning=10, n_skip_end=1, save=True)
+        # self.learner.lr_find(
+        #     start_lr=self.start_lr,
+        #     lr_mult=1.01,
+        #     max_epochs=self.lr_max_epochs,
+        #     stop_factor=6,
+        #     verbose=self.verbose,
+        #     show_plot=True,
+        #     restore_weights_only=True,
+        # )
+        # self.ktrain_lr_estimate()
+        # self.custom_lr_estimate()
+        # self.lr_find_plot(n_skip_beginning=10, n_skip_end=1, save=True)
+
+        self.lr_opt = FIXED_LR # 3e-4
         return
 
     def ktrain_lr_estimate(self):
@@ -251,6 +278,10 @@ class AutoEncoder:
         )
         assert self.learner.model is self.model
 
+        if WEIGHTS_PATH != '':
+            print("###############LOADING WEIGHTS!#####################")
+            self.model.load_weights(WEIGHTS_PATH)
+
         # fit model using Cyclical Learning Rates
         self.hist = self.learner.autofit(
             lr=lr_opt,
@@ -262,7 +293,7 @@ class AutoEncoder:
             max_momentum=0.95,
             min_momentum=0.85,
             monitor="val_loss",
-            checkpoint_folder=None,
+            checkpoint_folder=self.ckpt_dir,
             verbose=self.verbose,
             callbacks=[tensorboard_cb],
         )
@@ -289,6 +320,11 @@ class AutoEncoder:
         if not os.path.isdir(log_dir):
             os.makedirs(log_dir)
         self.log_dir = log_dir
+
+        ckpt_dir = os.path.join(save_dir, "ckpt")
+        if not os.path.isdir(ckpt_dir):
+            os.makedirs(ckpt_dir)
+        self.ckpt_dir = ckpt_dir
         return
 
     def create_model_name(self):

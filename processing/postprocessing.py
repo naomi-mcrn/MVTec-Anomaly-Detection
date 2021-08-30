@@ -197,24 +197,51 @@ def calculate_resmaps(imgs_input, imgs_pred, method, dtype="float64"):
     To calculate resmaps, input tensors must be grayscale and of shape (samples x length x width).
     """
     # if RGB, transform to grayscale and reduce tensor dimension to 3
-    if imgs_input.ndim == 4 and imgs_input.shape[-1] == 3:
+    if False and imgs_input.ndim == 4 and imgs_input.shape[-1] == 3:
         imgs_input_gray = tf.image.rgb_to_grayscale(imgs_input).numpy()[:, :, :, 0]
         imgs_pred_gray = tf.image.rgb_to_grayscale(imgs_pred).numpy()[:, :, :, 0]
     else:
         imgs_input_gray = imgs_input
         imgs_pred_gray = imgs_pred
 
+
     # calculate remaps
     if method == "l2":
         scores, resmaps = resmaps_l2(imgs_input_gray, imgs_pred_gray)
-    elif method in ["ssim", "mssim"]:
+    elif method in ["mssim","ssim"]:
         scores, resmaps = resmaps_ssim(imgs_input_gray, imgs_pred_gray)
+    elif False:
+        # grayscaleのfinetune/test時はこっちじゃないとあかん
+        scores, resmaps = resmaps_ssim_g(imgs_input_gray, imgs_pred_gray)
     if dtype == "uint8":
         resmaps = img_as_ubyte(resmaps)
     return scores, resmaps
 
 
 def resmaps_ssim(imgs_input, imgs_pred):
+    resmaps = np.zeros(shape=imgs_input.shape[:-1], dtype="float64")
+    scores = []
+    for index in range(len(imgs_input)):
+        img_input = imgs_input[index]
+        img_pred = imgs_pred[index]
+        score, resmap = structural_similarity(
+            img_input,
+            img_pred,
+            win_size=11,
+            gaussian_weights=True,
+            multichannel=True,
+            sigma=1.5,
+            full=True,
+        )
+        # resmap = np.expand_dims(resmap, axis=-1)
+        resmap = np.min(resmap, axis=2) 
+        # print(resmap.shape)
+        resmaps[index] = 1 - resmap
+        scores.append(score)
+    resmaps = np.clip(resmaps, a_min=-1, a_max=1)
+    return scores, resmaps
+
+def resmaps_ssim_g(imgs_input, imgs_pred):
     resmaps = np.zeros(shape=imgs_input.shape, dtype="float64")
     scores = []
     for index in range(len(imgs_input)):
@@ -238,6 +265,8 @@ def resmaps_ssim(imgs_input, imgs_pred):
 
 def resmaps_l2(imgs_input, imgs_pred):
     resmaps = (imgs_input - imgs_pred) ** 2
+    if resmaps.ndim == 4:
+        resmaps = np.sum(resmaps, axis=3)
     scores = list(np.sqrt(np.sum(resmaps, axis=0)).flatten())
     return scores, resmaps
 

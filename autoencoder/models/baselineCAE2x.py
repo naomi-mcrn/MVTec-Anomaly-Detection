@@ -24,7 +24,7 @@ from tensorflow.keras import regularizers
 # Preprocessing parameters
 RESCALE = 1.0 / 255
 # SHAPE = (256, 256)
-SHAPE = (320, 320)
+SHAPE = (640, 640)
 PREPROCESSING_FUNCTION = None
 PREPROCESSING = None
 VMIN = 0.0
@@ -83,6 +83,12 @@ def build_model(color_mode):
     x = MaxPooling2D((2, 2), padding="same")(x)
     # ---------------------------------------------------------------------------------
 
+    # ADDED
+    x = Conv2D(128, (3, 3), padding="same", kernel_regularizer=regularizers.l2(1e-6))(x)
+    x = BatchNormalization()(x)
+    x = LeakyReLU(alpha=0.1)(x)
+    x = MaxPooling2D((2, 2), padding="same")(x)
+
     x = Flatten()(x)
     x = Dense(encoding_dim, kernel_regularizer=regularizers.l2(1e-6))(x)
     x = LeakyReLU(alpha=0.1)(x)
@@ -91,6 +97,12 @@ def build_model(color_mode):
     # decoder
     # x = Reshape((4, 4, encoding_dim // 16))(x)
     x = Reshape((5, 5, encoding_dim // 25))(x)
+    x = Conv2D(128, (3, 3), padding="same", kernel_regularizer=regularizers.l2(1e-6))(x)
+    x = BatchNormalization()(x)
+    x = LeakyReLU(alpha=0.1)(x)
+    x = UpSampling2D((2, 2))(x)
+
+    # ADDED
     x = Conv2D(128, (3, 3), padding="same", kernel_regularizer=regularizers.l2(1e-6))(x)
     x = BatchNormalization()(x)
     x = LeakyReLU(alpha=0.1)(x)

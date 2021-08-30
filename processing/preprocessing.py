@@ -21,30 +21,39 @@ class Preprocessor:
 
     def get_train_generator(self, batch_size, shuffle=True):
         # This will do preprocessing and realtime data augmentation:
+        # train_datagen = ImageDataGenerator(
+        #     # standarize input
+        #     featurewise_center=False,
+        #     featurewise_std_normalization=False,
+        #     # randomly rotate images in the range (degrees, 0 to 180)
+        #     rotation_range=config.ROT_ANGLE,
+        #     # randomly shift images horizontally (fraction of total width)
+        #     width_shift_range=config.W_SHIFT_RANGE,
+        #     # randomly shift images vertically (fraction of total height)
+        #     height_shift_range=config.H_SHIFT_RANGE,
+        #     # set mode for filling points outside the input boundaries
+        #     fill_mode=config.FILL_MODE,
+        #     # value used for fill_mode = "constant"
+        #     cval=0.0,
+        #     # randomly change brightness (darker < 1 < brighter)
+        #     brightness_range=config.BRIGHTNESS_RANGE,
+        #     # set rescaling factor (applied before any other transformation)
+        #     rescale=self.rescale,
+        #     # set function that will be applied on each input
+        #     preprocessing_function=self.preprocessing_function,
+        #     # image data format, either "channels_first" or "channels_last"
+        #     data_format="channels_last",
+        #     # fraction of images reserved for validation (strictly between 0 and 1)
+        #     validation_split=self.validation_split,
+        # )
+
+        print("################### NO DATA AUGMENTATION!!! ####################33")
+
         train_datagen = ImageDataGenerator(
-            # standarize input
-            featurewise_center=False,
-            featurewise_std_normalization=False,
-            # randomly rotate images in the range (degrees, 0 to 180)
-            rotation_range=config.ROT_ANGLE,
-            # randomly shift images horizontally (fraction of total width)
-            width_shift_range=config.W_SHIFT_RANGE,
-            # randomly shift images vertically (fraction of total height)
-            height_shift_range=config.H_SHIFT_RANGE,
-            # set mode for filling points outside the input boundaries
-            fill_mode=config.FILL_MODE,
-            # value used for fill_mode = "constant"
-            cval=0.0,
-            # randomly change brightness (darker < 1 < brighter)
-            brightness_range=config.BRIGHTNESS_RANGE,
-            # set rescaling factor (applied before any other transformation)
             rescale=self.rescale,
-            # set function that will be applied on each input
-            preprocessing_function=self.preprocessing_function,
-            # image data format, either "channels_first" or "channels_last"
             data_format="channels_last",
-            # fraction of images reserved for validation (strictly between 0 and 1)
             validation_split=self.validation_split,
+            preprocessing_function=self.preprocessing_function,
         )
 
         # Generate training batches with datagen.flow_from_directory()
@@ -144,6 +153,6 @@ class Preprocessor:
 
 
 def get_preprocessing_function(architecture):
-    if architecture in ["mvtecCAE", "baselineCAE", "indexptionCAE", "resnetCAE"]:
+    if architecture in ["mvtecCAE", "baselineCAE", "baselineCAE2x", "indexptionCAE", "resnetCAE"]:
         preprocessing_function = None
     return preprocessing_function

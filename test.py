@@ -4,7 +4,9 @@ import argparse
 from pathlib import Path
 import time
 import json
+import cv2
 import tensorflow as tf
+from tensorflow import keras
 from processing import utils
 from processing import postprocessing
 from processing.preprocessing import Preprocessor
@@ -24,7 +26,16 @@ logger = logging.getLogger(__name__)
 
 def get_true_classes(filenames):
     # retrieve ground truth
-    y_true = [1 if "good" not in filename.split("/") else 0 for filename in filenames]
+    # y_true = [1 if "good" not in filename.split("/") else 0 for filename in filenames]
+    y_true = []
+    for filename in filenames:
+        if "good" not in filename.split(os.path.sep):
+            y_true.append(1)
+            print(f'{filename} -> DEFECTIVE')
+        else:
+            y_true.append(0)
+            print(f'{filename} -> GOOD')
+
     return y_true
 
 
@@ -48,11 +59,18 @@ def predict_classes(resmaps, min_area, threshold):
 
 def save_segmented_images(resmaps, threshold, filenames, save_dir):
     # threshold residual maps with the given threshold
+    # print(resmaps.shape)
     resmaps_th = resmaps > threshold
     # create directory to save segmented resmaps
     seg_dir = os.path.join(save_dir, "segmentation")
+    pdg_dir = os.path.join(seg_dir, "good")
+    pdd_dir = os.path.join(seg_dir, "defective")
     if not os.path.isdir(seg_dir):
         os.makedirs(seg_dir)
+    if not os.path.isdir(pdg_dir):
+        os.makedirs(pdg_dir)
+    if not os.path.isdir(pdd_dir):
+        os.makedirs(pdd_dir)
     # save segmented resmaps
     for i, resmap_th in enumerate(resmaps_th):
         fname = utils.generate_new_name(filenames[i], suffix="seg")
@@ -60,6 +78,72 @@ def save_segmented_images(resmaps, threshold, filenames, save_dir):
         plt.imsave(fpath, resmap_th, cmap="gray")
     return
 
+def save_diffmap_images(resmaps, filenames, save_dir):
+    # threshold residual maps with the given threshold
+    print(resmaps.shape)
+    # create directory to save segmented resmaps
+    seg_dir = os.path.join(save_dir, "diffmap")
+    pdg_dir = os.path.join(seg_dir, "good")
+    pdd_dir = os.path.join(seg_dir, "defective")
+    if not os.path.isdir(seg_dir):
+        os.makedirs(seg_dir)
+    if not os.path.isdir(pdg_dir):
+        os.makedirs(pdg_dir)
+    if not os.path.isdir(pdd_dir):
+        os.makedirs(pdd_dir)
+    # save segmented resmaps
+    for i, resmap in enumerate(resmaps):
+        # print(f'{resmap.min()}-{resmap.max()}')
+        resmap = (resmap * 255.).astype(np.uint8)
+        resmap = cv2.applyColorMap(resmap, cv2.COLORMAP_JET)
+        fname = utils.generate_new_name(filenames[i], suffix="diff")
+        fpath = os.path.join(seg_dir, fname)
+        cv2.imwrite(fpath, resmap)
+    return
+
+def save_pred_images(preds, filenames, save_dir):
+    pred_dir = os.path.join(save_dir, "predict")
+    pdg_dir = os.path.join(pred_dir, "good")
+    pdd_dir = os.path.join(pred_dir, "defective")
+    if not os.path.isdir(pred_dir):
+        os.makedirs(pred_dir)
+    if not os.path.isdir(pdg_dir):
+        os.makedirs(pdg_dir)
+    if not os.path.isdir(pdd_dir):
+        os.makedirs(pdd_dir)
+    # save segmented resmaps
+    for i, pred in enumerate(preds):
+        fname = utils.generate_new_name(filenames[i], suffix="pred")
+        fpath = os.path.join(pred_dir, fname)
+
+        p_min = np.min(pred)
+        p_max = np.max(pred)
+
+
+        pred = (pred * 255.0).clip(0, 255).astype(np.uint8)
+        pred = cv2.cvtColor(pred, cv2.COLOR_RGB2BGR)
+        cv2.imwrite(fpath, pred)
+    return
+
+def save_latent_images(latents, filenames, save_dir):
+    latent_dir = os.path.join(save_dir, "latent")
+    pdg_dir = os.path.join(latent_dir, "good")
+    pdd_dir = os.path.join(latent_dir, "defective")
+    if not os.path.isdir(latent_dir):
+        os.makedirs(latent_dir)
+    if not os.path.isdir(pdg_dir):
+        os.makedirs(pdg_dir)
+    if not os.path.isdir(pdd_dir):
+        os.makedirs(pdd_dir)
+    # save segmented resmaps
+    for i, latent in enumerate(latents):
+        fname = utils.generate_new_name(filenames[i], suffix="latent")
+        fpath = os.path.join(latent_dir, fname)
+        latent = (latent * 255.).astype(np.uint8)
+        latent = cv2.applyColorMap(latent, cv2.COLORMAP_JET)
+        latent = cv2.resize(latent, (256,256), interpolation=cv2.INTER_NEAREST)
+        cv2.imwrite(fpath, latent)
+    return
 
 def main(args):
     # parse arguments
@@ -140,9 +224,31 @@ def main(args):
         # retrieve test image names
         filenames = test_generator.filenames
 
+        # for layer in model.layers:
+        #     print(layer)
+
+        
+
+        # mvtecCAE latent model
+        # model_latent = keras.models.Model(model.inputs, [model.layers[10].output])
+        # baselineCAE latent model
+        model_latent = keras.models.Model(model.inputs, [model.layers[27].output])
+        # model_latent.summary()
+
         # predict on test images
         imgs_test_pred = model.predict(imgs_test_input)
+        imgs_test_latent = model_latent.predict(imgs_test_input)
 
+        if imgs_test_latent.ndim == 2:
+            ns = np.sqrt(imgs_test_latent.shape[1]).astype(int)
+            imgs_test_latent = imgs_test_latent.reshape(imgs_test_latent.shape[0], ns, ns)
+
+        # imgs_test_mask = np.max(imgs_test_input, axis=3) > (50 / 255.0)
+        # imgs_test_mask = np.stack([imgs_test_mask,imgs_test_mask,imgs_test_mask], axis=-1)
+        # print(imgs_test_mask.shape)
+        # imgs_test_pred = imgs_test_pred * imgs_test_mask
+        # imgs_test_input = imgs_test_input * imgs_test_mask
+    
         # instantiate TensorImages object
         tensor_test = postprocessing.TensorImages(
             imgs_input=imgs_test_input,
@@ -153,6 +259,9 @@ def main(args):
             dtype=dtype,
             filenames=filenames,
         )
+
+        # for score in tensor_test.scores:
+        #     print(score)
 
         # ====================== CLASSIFICATION ==========================
 
@@ -222,6 +331,9 @@ def main(args):
         # save segmented resmaps
         if save:
             save_segmented_images(tensor_test.resmaps, threshold, filenames, save_dir)
+            save_diffmap_images(tensor_test.resmaps, filenames, save_dir)
+            save_pred_images(imgs_test_pred, filenames, save_dir)
+            save_latent_images(imgs_test_latent, filenames, save_dir)
 
         # print test_results to console
         print("test results: {}".format(test_result))

@@ -10,6 +10,7 @@ from tensorflow import keras
 from autoencoder import metrics
 from autoencoder import losses
 
+from autoencoder.models import baselineVAEtiny
 
 def get_model_info(model_path):
     dir_name = os.path.dirname(model_path)
@@ -29,45 +30,53 @@ def load_model_HDF5(model_path):
     dynamic_range = info["preprocessing"]["dynamic_range"]
 
     # load autoencoder
-    if loss == "mssim":
-        model = keras.models.load_model(
-            filepath=model_path,
-            custom_objects={
-                "LeakyReLU": keras.layers.LeakyReLU,
-                "loss": losses.mssim_loss(dynamic_range),
-                "mssim": metrics.mssim_metric(dynamic_range),
-            },
-            compile=True,
-        )
-
-    elif loss == "ssim":
-        model = keras.models.load_model(
-            filepath=model_path,
-            custom_objects={
-                "LeakyReLU": keras.layers.LeakyReLU,
-                "loss": losses.ssim_loss(dynamic_range),
-                "ssim": metrics.ssim_metric(dynamic_range),
-            },
-            compile=True,
-        )
+    if os.path.basename(model_path)[:7] == 'weights':
+        # raise Exception('まだだよ')
+        model = baselineVAEtiny.build_model('rgb')
+        model.build(input_shape=(1,160,160,3))
+        model.load_weights(model_path)
+        model.compile()
 
     else:
-        model = keras.models.load_model(
-            filepath=model_path,
-            custom_objects={
-                "LeakyReLU": keras.layers.LeakyReLU,
-                "l2_loss": losses.l2_loss,
-                "ssim": losses.ssim_loss(dynamic_range),
-                "mssim": metrics.mssim_metric(dynamic_range),
-            },
-            compile=True,
-        )
+        if loss == "mssim":
+            model = keras.models.load_model(
+                filepath=model_path,
+                custom_objects={
+                    "LeakyReLU": keras.layers.LeakyReLU,
+                    "loss": losses.mssim_loss(dynamic_range),
+                    "mssim": metrics.mssim_metric(dynamic_range),
+                },
+                compile=True,
+            )
+
+        elif loss == "ssim":
+            model = keras.models.load_model(
+                filepath=model_path,
+                custom_objects={
+                    "LeakyReLU": keras.layers.LeakyReLU,
+                    "loss": losses.ssim_loss(dynamic_range),
+                    "ssim": metrics.ssim_metric(dynamic_range),
+                },
+                compile=True,
+            )
+
+        else:
+            model = keras.models.load_model(
+                filepath=model_path,
+                custom_objects={
+                    "LeakyReLU": keras.layers.LeakyReLU,
+                    "l2_loss": losses.l2_loss,
+                    "ssim": losses.ssim_loss(dynamic_range),
+                    "mssim": metrics.mssim_metric(dynamic_range),
+                },
+                compile=True,
+            )
 
     # load training history
     dir_name = os.path.dirname(model_path)
-    history = pd.read_csv(os.path.join(dir_name, "history.csv"))
+    # history = pd.read_csv(os.path.join(dir_name, "history.csv"))
 
-    return model, info, history
+    return model, info, None # history
 
 
 def save_np(arr, save_dir, filename):

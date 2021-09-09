@@ -20,6 +20,8 @@ import matplotlib.pyplot as plt
 from autoencoder.models import mvtecCAE
 from autoencoder.models import baselineCAE
 from autoencoder.models import baselineCAE2x
+from autoencoder.models import baselineCAEtiny
+from autoencoder.models import baselineVAEtiny
 from autoencoder.models import inceptionCAE
 from autoencoder.models import resnetCAE
 from autoencoder.models import skipCAE
@@ -35,12 +37,18 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # FIXED_LR = 0.01 / 16 # 3e-4 at adam.
-FIXED_LR = 0.0005141749861650169 # toothbrush
+# FIXED_LR = 0.0005141749861650169 # toothbrush
 # FIXED_LR = 0.03019951842725277 # s3
+# FIXED_LR = 0.0001
+# FIXED_LR = 0.015099759213626385
+# FIXED_LR = 0.001 
+FIXED_LR = 0.0003
+# FIXED_LR = 0.003125
+MAX_EPOCH = 50
 
-# weights_dir = r"C:\Anaconda3\envs\pbook_appx\apps\MVTec-Anomaly-Detection\saved_models\data\s3\mvtecCAE\mssim\28-08-2021_16-43-35\ckpt"
-# weights_file = "weights-93-0.27338.hdf5"
-WEIGHTS_PATH =  "" # os.path.join(weights_dir,weights_file)
+# weights_dir = r"C:\Anaconda3\envs\pbook_appx\apps\MVTec-Anomaly-Detection\saved_models\data\s3\baselineVAEtiny\mssim\08-09-2021_23-32-44\ckpt"
+# weights_file = "weights-297-0.01472.hdf5"
+WEIGHTS_PATH = "" # os.path.join(weights_dir,weights_file)
 
 class AutoEncoder:
     def __init__(
@@ -116,6 +124,28 @@ class AutoEncoder:
             self.vmax = baselineCAE2x.VMAX
             self.dynamic_range = baselineCAE2x.DYNAMIC_RANGE
 
+        elif architecture == "baselineCAEtiny":
+            # Preprocessing parameters
+            self.model = baselineCAEtiny.build_model(color_mode)
+            self.rescale = baselineCAEtiny.RESCALE
+            self.shape = baselineCAEtiny.SHAPE
+            self.preprocessing_function = baselineCAEtiny.PREPROCESSING_FUNCTION
+            self.preprocessing = baselineCAEtiny.PREPROCESSING
+            self.vmin = baselineCAEtiny.VMIN
+            self.vmax = baselineCAEtiny.VMAX
+            self.dynamic_range = baselineCAEtiny.DYNAMIC_RANGE
+
+        elif architecture == "baselineVAEtiny":
+            # Preprocessing parameters
+            self.model = baselineVAEtiny.build_model(color_mode)
+            self.rescale = baselineVAEtiny.RESCALE
+            self.shape = baselineVAEtiny.SHAPE
+            self.preprocessing_function = baselineVAEtiny.PREPROCESSING_FUNCTION
+            self.preprocessing = baselineVAEtiny.PREPROCESSING
+            self.vmin = baselineVAEtiny.VMIN
+            self.vmax = baselineVAEtiny.VMAX
+            self.dynamic_range = baselineVAEtiny.DYNAMIC_RANGE
+
         elif architecture == "inceptionCAE":
             # Preprocessing parameters
             self.model = inceptionCAE.build_model(color_mode)
@@ -160,7 +190,7 @@ class AutoEncoder:
 
         # verbosity
         self.verbose = verbose
-        if verbose:
+        if verbose and architecture != "baselineVAEtiny":
             self.model.summary()
 
         # set loss function
@@ -280,12 +310,13 @@ class AutoEncoder:
 
         if WEIGHTS_PATH != '':
             print("###############LOADING WEIGHTS!#####################")
+            self.model.build(input_shape=(1,160,160,3))
             self.model.load_weights(WEIGHTS_PATH)
 
         # fit model using Cyclical Learning Rates
         self.hist = self.learner.autofit(
             lr=lr_opt,
-            epochs=None,
+            epochs=MAX_EPOCH,
             early_stopping=self.early_stopping,
             reduce_on_plateau=self.reduce_on_plateau,
             reduce_factor=2,
@@ -396,7 +427,7 @@ class AutoEncoder:
         during training because of the use of Early Stopping Callback.
         """
         hist_dict = self.get_history_dict()
-        best_epoch = int(np.argmin(np.array(hist_dict["val_loss"])))
+        best_epoch = int(np.argmin(np.array(hist_dict["loss"])))
         return best_epoch
 
     def get_best_val_loss(self):

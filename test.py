@@ -168,35 +168,38 @@ def main(args):
     # =================== LOAD VALIDATION PARAMETERS =========================
 
     model_dir_name = os.path.basename(str(Path(model_path).parent))
-    finetune_dir = os.path.join(
-        os.getcwd(),
-        "results",
-        input_directory,
-        architecture,
-        loss,
-        model_dir_name,
-        "finetuning",
-    )
-    subdirs = os.listdir(finetune_dir)
-    for subdir in subdirs:
-        logger.info(
-            "testing with finetuning parameters from \n{}...".format(
-                os.path.join(finetune_dir, subdir)
-            )
-        )
-        try:
-            with open(
-                os.path.join(finetune_dir, subdir, "finetuning_result.json"), "r"
-            ) as read_file:
-                validation_result = json.load(read_file)
-        except FileNotFoundError:
-            logger.warning("run finetune.py before testing.\nexiting script.")
-            sys.exit()
+    # finetune_dir = os.path.join(
+    #     os.getcwd(),
+    #     "results",
+    #     input_directory,
+    #     architecture,
+    #     loss,
+    #     model_dir_name,
+    #     "finetuning",
+    # )
+    # subdirs = os.listdir(finetune_dir)
+    # for subdir in subdirs:
+    for _ in range(1):
+        # logger.info(
+        #     "testing with finetuning parameters from \n{}...".format(
+        #         os.path.join(finetune_dir, subdir)
+        #     )
+        # )
+        # try:
+        #     with open(
+        #         os.path.join(finetune_dir, subdir, "finetuning_result.json"), "r"
+        #     ) as read_file:
+        #         validation_result = json.load(read_file)
+        # except FileNotFoundError:
+        #     logger.warning("run finetune.py before testing.\nexiting script.")
+        #     sys.exit()
 
-        min_area = validation_result["best_min_area"]
-        threshold = validation_result["best_threshold"]
-        method = validation_result["method"]
-        dtype = validation_result["dtype"]
+        min_area = 42352350923848320832058032 # validation_result["best_min_area"]
+        threshold = 999.543634634 # validation_result["best_threshold"]
+        method = "ssim" # validation_result["method"]
+        dtype = "float64" # validation_result["dtype"]
+
+        subdir = f'{method}_{dtype}'
 
         # ====================== PREPROCESS TEST IMAGES ==========================
 
@@ -224,24 +227,42 @@ def main(args):
         # retrieve test image names
         filenames = test_generator.filenames
 
-        # for layer in model.layers:
-        #     print(layer)
+        # for i,layer in enumerate(model.layers):
+        #     print(f'{i: 2d} {layer}')
 
-        
 
         # mvtecCAE latent model
         # model_latent = keras.models.Model(model.inputs, [model.layers[10].output])
         # baselineCAE latent model
-        model_latent = keras.models.Model(model.inputs, [model.layers[27].output])
+        # print(model.layers[8])
+        model_latent = keras.models.Model(model.inputs, [model.layers[3].output]) # NO CONV BAKA NET
+        # model_latent = keras.models.Model(model.inputs, [model.layers[8].output]) # NOT LATENT(last conv output): tiny - removed 3 conv block
+        # model_latent = keras.models.Model(model.inputs, [model.layers[12].output]) # NOT LATENT(last conv output): tiny - removed 2 conv block
+        # model_latent = keras.models.Model(model.inputs, [model.layers[16].output]) # NOT LATENT(last conv output): tiny - removed 1 conv block
+        # model_latent = keras.models.Model(model.inputs, [model.layers[23].output]) # tiny
+        # model_latent = keras.models.Model(model.inputs, [model.layers[27].output])
+        # model_latent = keras.models.Model(model.inputs, [model.layers[31].output]) # 2x
         # model_latent.summary()
 
         # predict on test images
         imgs_test_pred = model.predict(imgs_test_input)
         imgs_test_latent = model_latent.predict(imgs_test_input)
+        # _, _, imgs_test_latent = model.encoder.predict(imgs_test_input) # VAE
 
         if imgs_test_latent.ndim == 2:
+            print('latent ndim == 2')
+            print(imgs_test_latent.shape)
+
             ns = np.sqrt(imgs_test_latent.shape[1]).astype(int)
-            imgs_test_latent = imgs_test_latent.reshape(imgs_test_latent.shape[0], ns, ns)
+            if ns * ns == imgs_test_latent.shape[1]:
+                imgs_test_latent = imgs_test_latent.reshape(imgs_test_latent.shape[0], ns, ns)
+            else:
+                imgs_test_latent = imgs_test_latent.reshape(imgs_test_latent.shape[0], 4, imgs_test_latent.shape[1] // 4)
+                print(imgs_test_latent.shape)
+        elif imgs_test_latent.ndim == 4:
+            print('latent ndim == 4')
+            print(imgs_test_latent.shape)
+            imgs_test_latent = np.mean(imgs_test_latent, axis=-1)
 
         # imgs_test_mask = np.max(imgs_test_input, axis=3) > (50 / 255.0)
         # imgs_test_mask = np.stack([imgs_test_mask,imgs_test_mask,imgs_test_mask], axis=-1)
@@ -266,26 +287,26 @@ def main(args):
         # ====================== CLASSIFICATION ==========================
 
         # retrieve ground truth
-        y_true = get_true_classes(filenames)
+        # y_true = get_true_classes(filenames)
 
-        # predict classes on test images
-        y_pred = predict_classes(
-            resmaps=tensor_test.resmaps, min_area=min_area, threshold=threshold
-        )
+        # # predict classes on test images
+        # y_pred = predict_classes(
+        #     resmaps=tensor_test.resmaps, min_area=min_area, threshold=threshold
+        # )
 
-        # confusion matrix
-        tnr, fp, fn, tpr = confusion_matrix(y_true, y_pred, normalize="true").ravel()
+        # # confusion matrix
+        # tnr, fp, fn, tpr = confusion_matrix(y_true, y_pred, normalize="true").ravel()
 
-        # initialize dictionary to store test results
-        test_result = {
-            "min_area": min_area,
-            "threshold": threshold,
-            "TPR": tpr,
-            "TNR": tnr,
-            "score": (tpr + tnr) / 2,
-            "method": method,
-            "dtype": dtype,
-        }
+        # # initialize dictionary to store test results
+        # test_result = {
+        #     "min_area": min_area,
+        #     "threshold": threshold,
+        #     "TPR": tpr,
+        #     "TNR": tnr,
+        #     "score": (tpr + tnr) / 2,
+        #     "method": method,
+        #     "dtype": dtype,
+        # }
 
         # ====================== SAVE TEST RESULTS =========================
 
@@ -304,29 +325,29 @@ def main(args):
         if not os.path.isdir(save_dir):
             os.makedirs(save_dir)
 
-        # save test result
-        with open(os.path.join(save_dir, "test_result.json"), "w") as json_file:
-            json.dump(test_result, json_file, indent=4, sort_keys=False)
+        # # save test result
+        # with open(os.path.join(save_dir, "test_result.json"), "w") as json_file:
+        #     json.dump(test_result, json_file, indent=4, sort_keys=False)
 
-        # save classification of image files in a .txt file
-        classification = {
-            "filenames": filenames,
-            "predictions": y_pred,
-            "truth": y_true,
-            "accurate_predictions": np.array(y_true) == np.array(y_pred),
-        }
-        df_clf = pd.DataFrame.from_dict(classification)
-        with open(os.path.join(save_dir, "classification.txt"), "w") as f:
-            f.write(
-                "min_area = {}, threshold = {}, method = {}, dtype = {}\n\n".format(
-                    min_area, threshold, method, dtype
-                )
-            )
-            f.write(df_clf.to_string(header=True, index=True))
+        # # save classification of image files in a .txt file
+        # classification = {
+        #     "filenames": filenames,
+        #     "predictions": y_pred,
+        #     "truth": y_true,
+        #     "accurate_predictions": np.array(y_true) == np.array(y_pred),
+        # }
+        # df_clf = pd.DataFrame.from_dict(classification)
+        # with open(os.path.join(save_dir, "classification.txt"), "w") as f:
+        #     f.write(
+        #         "min_area = {}, threshold = {}, method = {}, dtype = {}\n\n".format(
+        #             min_area, threshold, method, dtype
+        #         )
+        #     )
+        #     f.write(df_clf.to_string(header=True, index=True))
 
-        # print classification results to console
-        with pd.option_context("display.max_rows", None, "display.max_columns", None):
-            print(df_clf)
+        # # print classification results to console
+        # with pd.option_context("display.max_rows", None, "display.max_columns", None):
+        #     print(df_clf)
 
         # save segmented resmaps
         if save:
@@ -336,7 +357,7 @@ def main(args):
             save_latent_images(imgs_test_latent, filenames, save_dir)
 
         # print test_results to console
-        print("test results: {}".format(test_result))
+        # print("test results: {}".format(test_result))
 
 
 if __name__ == "__main__":

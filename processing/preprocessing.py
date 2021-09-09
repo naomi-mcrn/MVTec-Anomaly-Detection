@@ -153,6 +153,6 @@ class Preprocessor:
 
 
 def get_preprocessing_function(architecture):
-    if architecture in ["mvtecCAE", "baselineCAE", "baselineCAE2x", "indexptionCAE", "resnetCAE"]:
-        preprocessing_function = None
+    # if architecture in ["mvtecCAE", "baselineCAE", "baselineCAE2x", "baselineCAEtiny","indexptionCAE", "resnetCAE"]:
+    preprocessing_function = None
     return preprocessing_function

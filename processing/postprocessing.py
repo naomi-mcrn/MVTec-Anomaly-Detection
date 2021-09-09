@@ -10,6 +10,7 @@ from skimage.measure import label, regionprops
 from skimage.morphology import closing, square
 from skimage.util import img_as_ubyte
 import logging
+import cv2
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -209,7 +210,7 @@ def calculate_resmaps(imgs_input, imgs_pred, method, dtype="float64"):
     if method == "l2":
         scores, resmaps = resmaps_l2(imgs_input_gray, imgs_pred_gray)
     elif method in ["mssim","ssim"]:
-        scores, resmaps = resmaps_ssim(imgs_input_gray, imgs_pred_gray)
+        scores, resmaps = resmaps_ssim_v(imgs_input_gray, imgs_pred_gray)
     elif False:
         # grayscaleのfinetune/test時はこっちじゃないとあかん
         scores, resmaps = resmaps_ssim_g(imgs_input_gray, imgs_pred_gray)
@@ -235,6 +236,33 @@ def resmaps_ssim(imgs_input, imgs_pred):
         )
         # resmap = np.expand_dims(resmap, axis=-1)
         resmap = np.min(resmap, axis=2) 
+        # print(resmap.shape)
+        resmaps[index] = 1 - resmap
+        scores.append(score)
+    resmaps = np.clip(resmaps, a_min=-1, a_max=1)
+    return scores, resmaps
+
+def resmaps_ssim_v(imgs_input, imgs_pred):
+    resmaps = np.zeros(shape=imgs_input.shape[:-1], dtype="float64")
+    scores = []
+    for index in range(len(imgs_input)):
+        img_input = imgs_input[index]
+        img_pred = imgs_pred[index]
+
+        img_input_v = cv2.cvtColor(img_input, cv2.COLOR_RGB2HSV)[:,:,2]
+        img_pred_v = cv2.cvtColor(img_pred, cv2.COLOR_RGB2HSV)[:,:,2]
+
+        score, resmap = structural_similarity(
+            img_input_v,
+            img_pred_v,
+            win_size=11,
+            gaussian_weights=True,
+            multichannel=False,
+            sigma=1.5,
+            full=True,
+        )
+        # resmap = np.expand_dims(resmap, axis=-1)
+        # resmap = np.min(resmap, axis=2) 
         # print(resmap.shape)
         resmaps[index] = 1 - resmap
         scores.append(score)
